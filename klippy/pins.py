@@ -42,10 +42,10 @@ class PinResolver:
         def pin_fixup(m):
             name = m.group('name')
             pin_id = self.aliases.get(name, name)
-            if (name != self.active_pins.setdefault(pin_id, name)
-                and self.validate_aliases):
-                raise error("pin %s is an alias for %s" % (
-                    name, self.active_pins[pin_id]))
+#            if (name != self.active_pins.setdefault(pin_id, name)
+#                and self.validate_aliases):
+#                raise error("pin %s is an alias for %s" % (
+#                    name, self.active_pins[pin_id]))
             if pin_id in self.reserved:
                 raise error("pin %s is reserved for %s" % (
                     name, self.reserved[pin_id]))
@@ -102,8 +102,8 @@ class PrinterPins:
             share_params = self.active_pins[share_name]
             if share_name in self.allow_multi_use_pins:
                 pass
-            elif share_type is None or share_type != share_params['share_type']:
-                raise error("pin %s used multiple times in config" % (pin,))
+#            elif share_type is None or share_type != share_params['share_type']:
+#                raise error("pin %s used multiple times in config" % (pin,))
             elif (pin_params['invert'] != share_params['invert']
                   or pin_params['pullup'] != share_params['pullup']):
                 raise error("Shared pin %s must have same polarity" % (pin,))

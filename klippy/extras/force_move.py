@@ -46,6 +46,10 @@ class ForceMove:
         if config.getboolean("enable_force_move", False):
             gcode.register_command('FORCE_MOVE', self.cmd_FORCE_MOVE,
                                    desc=self.cmd_FORCE_MOVE_help)
+            gcode.register_command('G13', self.cmd_G13,
+                                   desc=self.cmd_G13_help)
+            gcode.register_command('G14', self.cmd_G14_MOVE,
+                                   desc=self.cmd_G14_MOVE_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
@@ -86,8 +90,10 @@ class ForceMove:
                           0., 0., 0., axis_r, 0., 0., 0., cruise_v, accel)
         print_time = print_time + accel_t + cruise_t + accel_t
         stepper.generate_steps(print_time)
+#        raise self.printer.command_error("test")
         self.trapq_finalize_moves(self.trapq, print_time + 99999.9,
                                   print_time + 99999.9)
+#ked je tu error tak to zacne pohyb ale prestane a crashne
         stepper.set_trapq(prev_trapq)
         stepper.set_stepper_kinematics(prev_sk)
         toolhead.note_mcu_movequeue_activity(print_time)
@@ -123,6 +129,68 @@ class ForceMove:
                      stepper.get_name(), distance, speed, accel)
         self._force_enable(stepper)
         self.manual_move(stepper, distance, speed, accel)
+    
+    # self.manual_move cant take numbers as input, it needs to be a variable
+    cmd_G13_help = "Separate movement of the Z axis steppers"
+    def cmd_G13(self, gcmd):        
+        dis_z = gcmd.get_float('Z')
+        dis_v = gcmd.get_float('V')
+        dis_w = gcmd.get_float('W')
+        
+        speed = 5
+        accel = 0
+        
+        logging.info("G13 distance=%.3f velocity=%.3f accel=%.3f", dis_z, speed, accel)
+        
+        stepper = self.steppers["stepper_z"]
+        self._force_enable(stepper)
+        self.manual_move(stepper, dis_z, speed, accel)
+
+        stepper = self.steppers["stepper_z1"]
+        self._force_enable(stepper)
+        self.manual_move(stepper, dis_v, speed, accel)
+
+        stepper = self.steppers["stepper_z2"]
+        self._force_enable(stepper)
+        self.manual_move(stepper, dis_w, speed, accel)
+
+    cmd_G14_MOVE_help = "Separate movement of the Z axis steppers"
+    def cmd_G14_MOVE(self, gcmd):        
+        angle = math.radians(gcmd.get_float('A'))
+
+        z_offset = 0 - ((math.sin(angle) * 250.95) / 2)
+        z2_offset  = (math.sin(angle) * 250.95) / 2
+        
+        speed = 5
+        accel = 0
+        
+        logging.info("G14 angle=%.3f velocity=%.3f accel=%.3f", angle, speed, accel)
+        
+        if z_offset < z2_offset:
+            stepper = self.steppers["stepper_z1"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z2_offset, speed, accel)
+
+            stepper = self.steppers["stepper_z2"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z2_offset, speed, accel)
+            
+            stepper = self.steppers["stepper_z"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z_offset, speed, accel)
+        else:
+            stepper = self.steppers["stepper_z"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z_offset, speed, accel)
+
+            stepper = self.steppers["stepper_z1"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z2_offset, speed, accel)
+
+            stepper = self.steppers["stepper_z2"]
+            self._force_enable(stepper)
+            self.manual_move(stepper, z2_offset, speed, accel)
+   
     cmd_SET_KINEMATIC_POSITION_help = "Force a low-level kinematic position"
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
