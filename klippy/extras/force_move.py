@@ -48,8 +48,8 @@ class ForceMove:
                                    desc=self.cmd_FORCE_MOVE_help)
             gcode.register_command('G13', self.cmd_G13,
                                    desc=self.cmd_G13_help)
-            gcode.register_command('G14', self.cmd_G14_MOVE,
-                                   desc=self.cmd_G14_MOVE_help)
+            gcode.register_command('G14', self.cmd_G14,
+                                   desc=self.cmd_G14_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
@@ -154,8 +154,8 @@ class ForceMove:
         self._force_enable(stepper)
         self.manual_move(stepper, dis_w, speed, accel)
 
-    cmd_G14_MOVE_help = "Separate movement of the Z axis steppers"
-    def cmd_G14_MOVE(self, gcmd):        
+    cmd_G14_help = "Separate movement of the Z axis steppers"
+    def cmd_G14(self, gcmd):        
         angle = math.radians(gcmd.get_float('A'))
 
         z_offset = 0 - ((math.sin(angle) * 250.95) / 2)
