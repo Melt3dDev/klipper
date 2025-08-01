@@ -17,7 +17,6 @@ class Move:
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.accel = toolhead.max_accel
-        self.angle = 0
         self.junction_deviation = toolhead.junction_deviation
         self.timing_callbacks = []
         velocity = min(speed, toolhead.max_velocity)
@@ -214,6 +213,7 @@ class ToolHead:
         self.all_mcus = [
             m for n, m in self.printer.lookup_objects(module='mcu')]
         self.mcu = self.all_mcus[0]
+        self.angle = 0
         self.lookahead = LookAheadQueue()
         self.lookahead.set_flush_time(BUFFER_TIME_HIGH)
         self.commanded_pos = [0., 0., 0., 0.]

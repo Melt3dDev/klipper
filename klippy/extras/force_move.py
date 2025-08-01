@@ -51,7 +51,7 @@ class ForceMove:
             gcode.register_command('G14', self.cmd_G14,
                                    desc=self.cmd_G14_help)
             gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE,
-                                   desc=self.cmd_GET_ANGLE)
+                                   desc=self.cmd_GET_ANGLE_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
@@ -164,11 +164,15 @@ class ForceMove:
         temp_pos[2] = 100
         
         prev_angle = toolhead.get_angle()
-        new_angle = math.radians(gcmd.get_float('A'))
-        angle = new_angle - prev_angle
+        new_angle = gcmd.get_float('A')
+        if prev_angle < new_angle:
+            angle = new_angle - prev_angle
+        else:
+            angle = 0 - (prev_angle - new_angle)
+        rad = math.radians(angle)
 
-        z_offset = 0 - (math.tan(angle) * 250.95)
-        z2_offset  = (math.tan(angle) * 250.95)
+        z_offset = 0 - (math.tan(rad) * 250.95)
+        z2_offset  = (math.tan(rad) * 250.95)
         
         speed = 20
         accel = 0
@@ -188,11 +192,14 @@ class ForceMove:
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
 
-        toolhead.set_angle(angle)
+        toolhead.set_angle(new_angle)
         toolhead.set_position(prev_pos)
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
-        raise gcmd.error(toolhead.get_angle)
+        toolhead = self.printer.lookup_object('toolhead')
+        gcode = self.printer.lookup_object('gcode')
+        msg = toolhead.get_angle()
+        gcode.respond_info(str(msg))
     cmd_SET_KINEMATIC_POSITION_help = "Force a low-level kinematic position"
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
