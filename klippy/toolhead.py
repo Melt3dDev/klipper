@@ -17,6 +17,7 @@ class Move:
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.accel = toolhead.max_accel
+        self.angle = 0
         self.junction_deviation = toolhead.junction_deviation
         self.timing_callbacks = []
         velocity = min(speed, toolhead.max_velocity)
@@ -466,6 +467,10 @@ class ToolHead:
         self.commanded_pos[:3] = newpos[:3]
         self.kin.set_position(newpos, homing_axes)
         self.printer.send_event("toolhead:set_position")
+    def get_angle(self):
+        return self.angle
+    def set_angle(self, newangle):
+        self.angle = newangle
     def limit_next_junction_speed(self, speed):
         last_move = self.lookahead.get_last()
         if last_move is not None:
