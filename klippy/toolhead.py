@@ -17,7 +17,6 @@ class Move:
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.accel = toolhead.max_accel
-        self.angle = 0
         self.junction_deviation = toolhead.junction_deviation
         self.timing_callbacks = []
         velocity = min(speed, toolhead.max_velocity)
@@ -214,6 +213,8 @@ class ToolHead:
         self.all_mcus = [
             m for n, m in self.printer.lookup_objects(module='mcu')]
         self.mcu = self.all_mcus[0]
+        self.a_angle = 0
+        self.b_angle = 0
         self.lookahead = LookAheadQueue()
         self.lookahead.set_flush_time(BUFFER_TIME_HIGH)
         self.commanded_pos = [0., 0., 0., 0.]
@@ -467,10 +468,14 @@ class ToolHead:
         self.commanded_pos[:3] = newpos[:3]
         self.kin.set_position(newpos, homing_axes)
         self.printer.send_event("toolhead:set_position")
-    def get_angle(self):
-        return self.angle
-    def set_angle(self, newangle):
-        self.angle = newangle
+    def get_a_angle(self):
+        return self.a_angle
+    def set_a_angle(self, newangle):
+        self.a_angle = newangle
+    def get_b_angle(self):
+        return self.b_angle
+    def set_b_angle(self, newangle):
+        self.b_angle = newangle
     def limit_next_junction_speed(self, speed):
         last_move = self.lookahead.get_last()
         if last_move is not None:
