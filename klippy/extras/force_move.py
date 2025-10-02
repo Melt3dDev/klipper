@@ -54,6 +54,7 @@ class ForceMove:
                                    desc=self.cmd_G15_help)
             gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE,
                                    desc=self.cmd_GET_ANGLE_help)
+                                   desc=self.cmd_GET_ANGLE_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
