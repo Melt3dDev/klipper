@@ -50,8 +50,6 @@ class ForceMove:
                                    desc=self.cmd_G13_help)
             gcode.register_command('G14', self.cmd_G14,
                                    desc=self.cmd_G14_help)
-            gcode.register_command('G15', self.cmd_G15,
-                                   desc=self.cmd_G15_help)
             gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE,
                                    desc=self.cmd_GET_ANGLE_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
@@ -163,27 +161,34 @@ class ForceMove:
         prev_pos = toolhead.get_position()
 
         speed = 20
+        relative = False
 
         prev_a_angle = toolhead.get_a_angle()
         new_a_angle = gcmd.get_float('A')
         prev_b_angle = toolhead.get_b_angle()
         new_b_angle = gcmd.get_float('B')
 
-        if new_a_angle != prev_a_angle:
-            if prev_a_angle < new_a_angle:
-                angle = new_a_angle - prev_a_angle
-            else:
-                angle = 0 - (prev_a_angle - new_a_angle)
-            rad = math.radians(angle)
+        if gcmd.get("R", None) is not None:
+            relative = True
 
-            z_offset = 0 - (math.tan(rad) * 250.95)
+        if new_a_angle != prev_a_angle or relative:
+            if relative:
+                rad = math.radians(new_a_angle)
+            else:
+                if prev_a_angle < new_a_angle:
+                    angle = new_a_angle - prev_a_angle
+                else:
+                    angle = 0 - (prev_a_angle - new_a_angle)
+                rad = math.radians(angle)
+
+            z_offset = 0 - (math.tan(rad) * 250.95) / 2
 
             if True:
                 stepper = self.steppers["stepper_z1"]
                 stepper.set_dir_inverted(False)
                 stepper = self.steppers["stepper_z2"]
                 stepper.set_dir_inverted(False)
-                curpos[2] += z_offset / 2
+                curpos[2] += z_offset
                 toolhead.move(curpos, speed)
                 toolhead.flush_step_generation()
                 stepper = self.steppers["stepper_z1"]
@@ -191,15 +196,17 @@ class ForceMove:
                 stepper = self.steppers["stepper_z2"]
                 stepper.set_dir_inverted(True)
 
-        if new_b_angle != prev_b_angle:
+        if new_b_angle != prev_b_angle or relative:
             kin = self.printer.lookup_object('toolhead').get_kinematics()
             z_steppers = [s for s in kin.get_steppers() if s.is_active_axis('z')]
-
-            if prev_b_angle < new_b_angle:
-                angle = new_b_angle - prev_b_angle
+            if relative:
+                rad = math.radians(new_b_angle)
             else:
-                angle = 0 - (prev_b_angle - new_b_angle)
-            rad = math.radians(angle)
+                if prev_b_angle < new_b_angle:
+                    angle = new_b_angle - prev_b_angle
+                else:
+                    angle = 0 - (prev_b_angle - new_b_angle)
+                rad = math.radians(angle)
 
             z_offset = 0 - (math.tan(rad) * 285.9) / 2
 
@@ -217,49 +224,14 @@ class ForceMove:
             stepper.set_dir_inverted(True)
             for s in z_steppers:
                 s.set_trapq(toolhead.get_trapq())
-
-        toolhead.set_a_angle(new_a_angle)
-        toolhead.set_b_angle(new_b_angle)
+        if relative:
+            toolhead.set_a_angle(toolhead.get_a_angle() + new_a_angle)
+            toolhead.set_b_angle(toolhead.get_b_angle() + new_b_angle)
+        else:
+            toolhead.set_a_angle(new_a_angle)
+            toolhead.set_b_angle(new_b_angle)
         toolhead.set_position(prev_pos)
 
-    cmd_G15_help = "(Relative) Separate movement of the Z axis steppers with angle as input"
-    def cmd_G15(self, gcmd):
-        toolhead = self.printer.lookup_object('toolhead')
-        curpos = toolhead.get_position()
-        prev_pos = toolhead.get_position()
-
-        prev_angle = toolhead.get_a_angle()
-        new_angle = gcmd.get_float('A')
-        if prev_angle < new_angle:
-            angle = new_angle - prev_angle
-        else:
-            angle = 0 - (prev_angle - new_angle)
-
-        rad = math.radians(new_angle)
-
-        z_offset = 0 - (math.tan(rad) * 250.95)
-        z2_offset  = (math.tan(rad) * 250.95)
-
-        speed = 20
-        accel = 0
-
-        if z_offset < z2_offset:
-            curpos[2] += (z2_offset / 2)
-            toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
-            stepper = self.steppers["stepper_z"]
-            self._force_enable(stepper)
-            self.manual_move(stepper, z_offset, speed, accel)
-        else:
-            stepper = self.steppers["stepper_z"]
-            self._force_enable(stepper)
-            self.manual_move(stepper, z_offset, speed, accel)
-            curpos[2] += (z2_offset / 2)
-            toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
-
-        toolhead.set_a_angle(new_angle)
-        toolhead.set_position(prev_pos)
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
