@@ -140,8 +140,6 @@ class ForceMove:
         speed = 20
         accel = 0
 
-        logging.info("G13 distance=%.3f velocity=%.3f accel=%.3f", dis_z, speed, accel)
-
         stepper = self.steppers["stepper_z"]
         self._force_enable(stepper)
         self.manual_move(stepper, dis_z, speed, accel)
@@ -153,6 +151,10 @@ class ForceMove:
         stepper = self.steppers["stepper_z2"]
         self._force_enable(stepper)
         self.manual_move(stepper, dis_w, speed, accel)
+
+    def _check_collision(self, z_offset):
+        toolhead = self.printer.lookup_object('toolhead')
+        curpos = toolhead.get_position()
 
     cmd_G14_help = "Separate movement of the Z axis steppers with angle as input"
     def cmd_G14(self, gcmd):
@@ -167,6 +169,8 @@ class ForceMove:
         new_a_angle = gcmd.get_float('A')
         prev_b_angle = toolhead.get_b_angle()
         new_b_angle = gcmd.get_float('B')
+        za_offset = toolhead.get_a_offset()
+        zb_offset = toolhead.get_b_offset()
 
         if gcmd.get("R", None) is not None:
             relative = True
@@ -181,24 +185,24 @@ class ForceMove:
                     angle = 0 - (prev_a_angle - new_a_angle)
                 rad = math.radians(angle)
 
-            z_offset = 0 - (math.tan(rad) * 250.95) / 2
+            za_offset = 0 - (math.tan(rad) * 250.95) / 2
 
-            if True:
-                stepper = self.steppers["stepper_z1"]
-                stepper.set_dir_inverted(False)
-                stepper = self.steppers["stepper_z2"]
-                stepper.set_dir_inverted(False)
-                curpos[2] += z_offset
-                toolhead.move(curpos, speed)
-                toolhead.flush_step_generation()
-                stepper = self.steppers["stepper_z1"]
-                stepper.set_dir_inverted(True)
-                stepper = self.steppers["stepper_z2"]
-                stepper.set_dir_inverted(True)
+            stepper = self.steppers["stepper_z1"]
+            stepper.set_dir_inverted(False)
+            stepper = self.steppers["stepper_z2"]
+            stepper.set_dir_inverted(False)
+            curpos[2] += za_offset
+            toolhead.move(curpos, speed)
+            toolhead.flush_step_generation()
+            stepper = self.steppers["stepper_z1"]
+            stepper.set_dir_inverted(True)
+            stepper = self.steppers["stepper_z2"]
+            stepper.set_dir_inverted(True)
 
         if new_b_angle != prev_b_angle or relative:
             kin = self.printer.lookup_object('toolhead').get_kinematics()
-            z_steppers = [s for s in kin.get_steppers() if s.is_active_axis('z')]
+            z_steppers = [s for s in kin.get_steppers() if
+                          s.is_active_axis('z')]
             if relative:
                 rad = math.radians(new_b_angle)
             else:
@@ -208,38 +212,45 @@ class ForceMove:
                     angle = 0 - (prev_b_angle - new_b_angle)
                 rad = math.radians(angle)
 
-            z_offset = 0 - (math.tan(rad) * 285.9) / 2
+            zb_offset = 0 - (math.tan(rad) * 285.9) / 2
 
             for s in z_steppers:
                 s.set_trapq(None)
+
             stepper = self.steppers["stepper_z1"]
             stepper.set_trapq(toolhead.get_trapq())
             stepper.set_dir_inverted(False)
             stepper = self.steppers["stepper_z2"]
             stepper.set_trapq(toolhead.get_trapq())
-            curpos[2] += z_offset
+            curpos[2] += zb_offset
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
             stepper = self.steppers["stepper_z1"]
             stepper.set_dir_inverted(True)
+
             for s in z_steppers:
                 s.set_trapq(toolhead.get_trapq())
+
         if relative:
             toolhead.set_a_angle(toolhead.get_a_angle() + new_a_angle)
+            toolhead.set_a_offset(toolhead.get_a_offset() + za_offset)
             toolhead.set_b_angle(toolhead.get_b_angle() + new_b_angle)
+            toolhead.set_b_offset(toolhead.get_b_offset() + zb_offset)
         else:
             toolhead.set_a_angle(new_a_angle)
+            toolhead.set_a_offset(za_offset)
             toolhead.set_b_angle(new_b_angle)
+            toolhead.set_b_offset(zb_offset)
         toolhead.set_position(prev_pos)
 
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
         gcode = self.printer.lookup_object('gcode')
-        # stepper = self.steppers["stepper_z1"]
-        # msg = str(stepper.get_dir_inverted)
-        msg = f"A: {str(toolhead.get_a_angle())}, B: {str(toolhead.get_b_angle())}"
+        msg = f"A: {str(toolhead.get_a_angle())}, B: {
+            str(toolhead.get_b_angle())}"
         gcode.respond_info(str(msg))
+
     cmd_SET_KINEMATIC_POSITION_help = "Force a low-level kinematic position"
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')

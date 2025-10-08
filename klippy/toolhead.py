@@ -215,6 +215,8 @@ class ToolHead:
         self.mcu = self.all_mcus[0]
         self.a_angle = 0
         self.b_angle = 0
+        self.a_offset = 0
+        self.b_offset = 0
         self.lookahead = LookAheadQueue()
         self.lookahead.set_flush_time(BUFFER_TIME_HIGH)
         self.commanded_pos = [0., 0., 0., 0.]
@@ -470,12 +472,20 @@ class ToolHead:
         self.printer.send_event("toolhead:set_position")
     def get_a_angle(self):
         return self.a_angle
+    def get_a_offset(self):
+        return self.a_offset
     def set_a_angle(self, newangle):
         self.a_angle = newangle
+    def set_a_offset(self, newoffset):
+        self.a_offset = newoffset
     def get_b_angle(self):
         return self.b_angle
+    def get_b_offset(self):
+        return self.b_offset
     def set_b_angle(self, newangle):
         self.b_angle = newangle
+    def set_b_offset(self, newoffset):
+        self.b_offset = newoffset
     def limit_next_junction_speed(self, speed):
         last_move = self.lookahead.get_last()
         if last_move is not None:
