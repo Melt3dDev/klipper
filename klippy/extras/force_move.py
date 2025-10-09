@@ -152,25 +152,33 @@ class ForceMove:
         self._force_enable(stepper)
         self.manual_move(stepper, dis_w, speed, accel)
 
-    def _check_collision(self, z_offset):
+    def _check_collision(self, z_offset, length, width):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
+        nozzle_percent = {"x": 1 - curpos[1] / length, "y": 1 - curpos[0] / width}
+        if curpos + z_offset * nozzle_percent["x"] <= 0:
+            raise self.printer.command_error("Prevented collision on A angle")
+        elif curpos + z_offset * nozzle_percent["x"] <= 0:
+            raise self.printer.command_error("Prevented collision on B angle")
 
     cmd_G14_help = "Separate movement of the Z axis steppers with angle as input"
     def cmd_G14(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
         prev_pos = toolhead.get_position()
+        kin = self.printer.lookup_object('toolhead').get_kinematics()
+        z_steppers = [s for s in kin.get_steppers() if
+                s.is_active_axis('z')]
 
         speed = 20
         relative = False
+        length = 250.95
+        width = 285.9
 
         prev_a_angle = toolhead.get_a_angle()
         new_a_angle = gcmd.get_float('A')
         prev_b_angle = toolhead.get_b_angle()
         new_b_angle = gcmd.get_float('B')
-        za_offset = toolhead.get_a_offset()
-        zb_offset = toolhead.get_b_offset()
 
         if gcmd.get("R", None) is not None:
             relative = True
@@ -185,24 +193,23 @@ class ForceMove:
                     angle = 0 - (prev_a_angle - new_a_angle)
                 rad = math.radians(angle)
 
-            za_offset = 0 - (math.tan(rad) * 250.95) / 2
+            za_offset = 0 - (math.tan(rad) * length) / 2
 
-            stepper = self.steppers["stepper_z1"]
-            stepper.set_dir_inverted(False)
-            stepper = self.steppers["stepper_z2"]
-            stepper.set_dir_inverted(False)
+            self._check_collision(za_offset, length, width)
+
+            # stepper = self.steppers["stepper_z1"]
+            z_steppers[1].set_dir_inverted(False)
+            # stepper = self.steppers["stepper_z2"]
+            z_steppers[2].set_dir_inverted(False)
             curpos[2] += za_offset
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
-            stepper = self.steppers["stepper_z1"]
-            stepper.set_dir_inverted(True)
-            stepper = self.steppers["stepper_z2"]
-            stepper.set_dir_inverted(True)
+            # stepper = self.steppers["stepper_z1"]
+            z_steppers[1].set_dir_inverted(True)
+            # stepper = self.steppers["stepper_z2"]
+            z_steppers[2].set_dir_inverted(True)
 
         if new_b_angle != prev_b_angle or relative:
-            kin = self.printer.lookup_object('toolhead').get_kinematics()
-            z_steppers = [s for s in kin.get_steppers() if
-                          s.is_active_axis('z')]
             if relative:
                 rad = math.radians(new_b_angle)
             else:
@@ -212,16 +219,18 @@ class ForceMove:
                     angle = 0 - (prev_b_angle - new_b_angle)
                 rad = math.radians(angle)
 
-            zb_offset = 0 - (math.tan(rad) * 285.9) / 2
+            zb_offset = 0 - (math.tan(rad) * width) / 2
+
+            self._check_collision(zb_offset, length, width)
 
             for s in z_steppers:
                 s.set_trapq(None)
 
-            stepper = self.steppers["stepper_z1"]
-            stepper.set_trapq(toolhead.get_trapq())
-            stepper.set_dir_inverted(False)
-            stepper = self.steppers["stepper_z2"]
-            stepper.set_trapq(toolhead.get_trapq())
+            # stepper = self.steppers["stepper_z1"]
+            z_steppers[1].set_trapq(toolhead.get_trapq())
+            z_steppers[1].set_dir_inverted(False)
+            # stepper = self.steppers["stepper_z2"]
+            z_steppers[2].set_trapq(toolhead.get_trapq())
             curpos[2] += zb_offset
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
