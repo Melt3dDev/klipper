@@ -152,15 +152,16 @@ class ForceMove:
         self._force_enable(stepper)
         self.manual_move(stepper, dis_w, speed, accel)
 
-    def _check_collision(self, z_offset, length, width):
+    def _check_collision(self, angle, length):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
-        nozzle_percent = {"x": 1 - curpos[1] / length,
-                          "y": 1 - curpos[0] / width}
-        if curpos + z_offset * nozzle_percent["x"] <= 0:
-            raise self.printer.command_error("Prevented collision on A angle")
-        elif curpos + z_offset * nozzle_percent["x"] <= 0:
-            raise self.printer.command_error("Prevented collision on B angle")
+
+        rad = math.radians(- angle)
+        # 80 is a placeholder value because currently coordinates arent 1mm = 1 but something else
+        y_line = math.tan(rad) * (curpos[0] - (80)) + curpos[2]
+
+        if 0 > y_line:
+            raise self.printer.command_error("Prevented collision")
 
     cmd_G14_help = "Separate movement of the Z axis steppers with \
                     angle as input"
@@ -205,7 +206,7 @@ class ForceMove:
 
             za_offset = - (math.tan(rad) * length) / 2
 
-            self._check_collision(za_offset, length, width)
+            # self._check_collision(prev_a_angle + new_a_angle, length)
 
             z_steppers[1].set_dir_inverted(False)
             z_steppers[2].set_dir_inverted(False)
@@ -227,7 +228,7 @@ class ForceMove:
 
             zb_offset = - (math.tan(rad) * width) / 2
 
-            self._check_collision(zb_offset, length, width)
+            # self._check_collision(prev_b_angle + new_b_angle, width)
 
             for s in z_steppers:
                 s.set_trapq(None)
