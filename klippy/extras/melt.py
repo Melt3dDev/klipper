@@ -1,6 +1,6 @@
 # Custom modifications for Melt Melta
 #
-# Copyright (C) 2025-2026  Juraj Minaric <jurko.minaric@gmail.com>
+# Copyright (C) 2025-2026  Juraj Minaric <>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import math, logging
@@ -12,11 +12,13 @@ class Melt:
         self.printer = config.get_printer()
         self.steppers = {}
 
-        self.a_angle = 0
-        self.b_angle = 0
-        self.a_offset = 0
-        self.b_offset = 0
-        self.eject_coords = None
+        self.a_angle = 0.0
+        self.b_angle = 0.0
+        self.a_offset = 0.0
+        self.b_offset = 0.0
+        self.length = 250.95
+        self.width = 285.9
+        self.eject_coords = {"X": 0.0, "Y": 200.0, "Z": 10.0}
 
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
@@ -52,53 +54,20 @@ class Melt:
             raise self.printer.command_error("Prevented collision on A angle")
 
     # Tu nastane podla mna nejaka sracka ked sa pocita offset zase ked nie je angle 0
-    cmd_G14_help = "Separate movement of the Z axis steppers with \
-                    angle as input"
-    def cmd_G14(self, gcmd):
+    def angle_move(self, new_a_angle, new_b_angle, speed, relative):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
         prev_pos = toolhead.get_position()
         kin = self.printer.lookup_object('toolhead').get_kinematics()
         z_steppers = [s for s in kin.get_steppers() if
                 s.is_active_axis('z')]
-
-        speed = 20
-        relative = False
         change = False
-        length = 250.95
-        width = 285.9
 
-        prev_a_angle = self.a_angle
-        new_a_angle = gcmd.get_float('A')
-        # prev_b_angle = toolhead.get_b_angle()
-        # new_b_angle = gcmd.get_float('B')
-
-        params = gcmd.get_command_parameters()
-        if 'F' in params:
-            gcode_speed = float(params['F'])
-            if gcode_speed <= 0.:
-                raise gcmd.error("Invalid speed in '%s'"
-                                    % (gcmd.get_commandline(),))
-            speed = gcode_speed * (1. / 60.)
-
-        if gcmd.get("R", None) is not None:
-            relative = True
-
-        if new_a_angle != prev_a_angle or relative:
+        toolhead.flush_step_generation()
+        if new_a_angle != self.a_angle or relative:
             change = True
-            if relative:
-                rad = math.radians(new_a_angle)
-            else:
-                # if prev_a_angle < new_a_angle:
-                #     angle = new_a_angle - prev_a_angle
-                # else:
-                #     angle = - (prev_a_angle - new_a_angle)
-                # rad = math.radians(angle)
-                rad = math.radians(new_a_angle)
-
-                za_offset = (math.tan(rad) * length) / 2
-
-            # self._check_collision(prev_a_angle + new_a_angle, length, width)
+            rad = math.radians(new_a_angle)
+            za_offset = (math.tan(rad) * self.length) / 2
 
             z_steppers[1].set_dir_inverted(True)
             z_steppers[2].set_dir_inverted(True)
@@ -108,50 +77,42 @@ class Melt:
             z_steppers[1].set_dir_inverted(False)
             z_steppers[2].set_dir_inverted(False)
 
-        # if new_b_angle != prev_b_angle or relative:
-        #     change = True
-        #     if relative:
-        #         rad = math.radians(new_b_angle)
-        #     else:
-        #         if prev_b_angle < new_b_angle:
-        #             angle = new_b_angle - prev_b_angle
-        #         else:
-        #             angle = - (prev_b_angle - new_b_angle)
-        #         rad = math.radians(angle)
-
-        #     zb_offset = - (math.tan(rad) * width) / 2
-
-        #     # self._check_collision(zb_offset, length, width)
-
-        #     for s in z_steppers:
-        #         s.set_trapq(None)
-
-        #     z_steppers[1].set_trapq(toolhead.get_trapq())
-        #     z_steppers[1].set_dir_inverted(False)
-        #     z_steppers[2].set_trapq(toolhead.get_trapq())
-        #     curpos[2] += zb_offset
-        #     toolhead.move(curpos, speed)
-        #     toolhead.flush_step_generation()
-        #     stepper = self.steppers["stepper_z1"]
-        #     stepper.set_dir_inverted(True)
-
-        #     for s in z_steppers:
-        #         s.set_trapq(toolhead.get_trapq())
-
         if change:
             if relative:
                 self.a_angle = self.a_angle + new_a_angle
                 self.a_offset = self.a_offset + za_offset
-                # toolhead.set_b_angle(toolhead.get_b_angle() + new_b_angle)
-                # toolhead.set_b_offset(toolhead.get_b_offset() + zb_offset)
             else:
                 self.a_angle = new_a_angle
                 self.a_offset = za_offset
-                # toolhead.set_a_angle(new_a_angle)
-                # toolhead.set_a_offset(za_offset)
-                # toolhead.set_b_angle(new_b_angle)
-                # toolhead.set_b_offset(zb_offset)
         toolhead.set_position(prev_pos)
+
+    cmd_G14_help = "Separate movement of the Z axis steppers with \
+                    angle as input"
+    def cmd_G14(self, gcmd):
+        speed = 20.0
+        relative = False
+        new_a_angle = 0.0
+        new_b_angle = 0.0
+
+        params = gcmd.get_command_parameters()
+
+        if "A" in params:
+            new_a_angle = float(params["A"])
+
+        if "B" in params:
+            new_b_angle = float(params["B"])
+
+        if "R" in params:
+            relative = True
+
+        if "F" in params:
+            gcode_speed = float(params["F"])
+            if gcode_speed <= 0.:
+                raise gcmd.error("Invalid speed in '%s'"
+                                    % (gcmd.get_commandline(),))
+            speed = gcode_speed * (1. / 60.)
+
+        self.angle_move(new_a_angle, new_b_angle, speed, relative)
 
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
@@ -165,40 +126,76 @@ class Melt:
     cmd_G15_help = "Automatically removes print from print bed"
     def cmd_G15(self, gcmd):
         gcode = self.printer.lookup_object('gcode')
-
-        if gcmd.get("A", None) is not None:
+        params = gcmd.get_command_parameters()
+        #  Parse the gcode thats currently printing and save important values for later
+        if 'A' in params:
             print_stats = self.printer.lookup_object('print_stats')
             filename = print_stats.get_status(0)['filename']
             if filename == "":
                 raise gcmd.error("No file printing currently")
             filelines = []
             with open("/home/biqu/printer_data/gcodes/" + filename, "r") as file:
-                # gcode.respond_info(file.read())
                 filelines = file.read().split("\n")
             seen_layer = 0
             sum_x = 0.0
             amnt_x = 0
+            self.eject_coords["X"] = 220.0
             for line in filelines:
                 if seen_layer == 1:
                     splitline = line.split()
-                    if len(splitline) > 2 and splitline[1][0] == "X":
-                        amnt_x += 1
-                        sum_x += float(splitline[1][1:])
+                    if len(splitline) > 2:
+                        if splitline[1][0] == "X":
+                            amnt_x += 1
+                            sum_x += float(splitline[1][1:])
+                        if splitline[2][0] == "Y":
+                            self.eject_coords["Y"] = min(self.eject_coords["Y"], float(splitline[2][1:]))
 
                 if line == ";LAYER_CHANGE":
                     seen_layer += 1
                     if seen_layer > 1:
                         break
-            avg_pos = round(sum_x / amnt_x)
-            gcode.respond_info(str(avg_pos))
-            raise gcmd.error("STOP")
-        elif gcmd.get("E", None) is not None:
-            heaters = self.printer.lookup_object('heaters')
-            gcode.respond_info(str(heaters.get_all_heaters()))
+            self.eject_coords["X"] = sum_x / amnt_x
+            # gcode.respond_info(str(self.eject_coords))
+            # raise gcmd.error("STOP")
 
-            heaters._wait_for_temperature('extruder', 30)
+        #  Eject the print
+        elif 'E' in params:
+            toolhead = self.printer.lookup_object("toolhead")
+            curpos = toolhead.get_position()
+            sensor = self.printer.lookup_object("extruder")
+            reactor = self.printer.get_reactor()
+            eventtime = reactor.monotonic()
+
+            max_temp = 30.0
+
+            while not self.printer.is_shutdown():
+                temp = float(sensor.stats(eventtime)[1].split()[2][5:])
+                if temp <= max_temp:
+                    break
+                eventtime = reactor.pause(eventtime + 1.)
             gcode.respond_info("under 30")
 
+            self.eject_coords["X"] = 100
+
+            curpos[0] = self.eject_coords["X"]
+            curpos[1] = 200
+
+            toolhead.move(curpos, 120)
+
+            curpos[2] = self.eject_coords["Z"]
+
+            toolhead.move(curpos, 80)
+
+            curpos[1] = self.eject_coords["Y"]
+
+            toolhead.move(curpos, 60)
+
+            curpos[2] = 110
+
+            toolhead.move(curpos, 80)
+
+            self.angle_move(30, 0, 20, False)
+            self.angle_move(0, 0, 20, False)
 
 def load_config(config):
     return Melt(config)

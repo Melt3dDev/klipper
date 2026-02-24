@@ -1,0 +1,88 @@
+    # Tu nastane podla mna nejaka sracka ked sa pocita offset zase ked nie je angle 0
+    def angle_move(self, new_a_angle, new_b_angle, speed, relative, length, width):
+        toolhead = self.printer.lookup_object('toolhead')
+        curpos = toolhead.get_position()
+        prev_pos = toolhead.get_position()
+        kin = self.printer.lookup_object('toolhead').get_kinematics()
+        z_steppers = [s for s in kin.get_steppers() if
+                s.is_active_axis('z')]
+
+        prev_a_angle = self.a_angle
+        # prev_b_angle = toolhead.get_b_angle()
+
+        params = gcmd.get_command_parameters()
+        if 'F' in params:
+            gcode_speed = float(params['F'])
+            if gcode_speed <= 0.:
+                raise gcmd.error("Invalid speed in '%s'"
+                                    % (gcmd.get_commandline(),))
+            speed = gcode_speed * (1. / 60.)
+
+        if new_a_angle != prev_a_angle or relative:
+            change = True
+            if relative:
+                rad = math.radians(new_a_angle)
+            else:
+                # if prev_a_angle < new_a_angle:
+                #     angle = new_a_angle - prev_a_angle
+                # else:
+                #     angle = - (prev_a_angle - new_a_angle)
+                # rad = math.radians(angle)
+                rad = math.radians(new_a_angle)
+
+                za_offset = (math.tan(rad) * length) / 2
+
+            # self._check_collision(prev_a_angle + new_a_angle, length, width)
+
+            z_steppers[1].set_dir_inverted(True)
+            z_steppers[2].set_dir_inverted(True)
+            curpos[2] -= za_offset - self.a_offset
+            toolhead.move(curpos, speed)
+            toolhead.flush_step_generation()
+            z_steppers[1].set_dir_inverted(False)
+            z_steppers[2].set_dir_inverted(False)
+
+        # if new_b_angle != prev_b_angle or relative:
+        #     change = True
+        #     if relative:
+        #         rad = math.radians(new_b_angle)
+        #     else:
+        #         if prev_b_angle < new_b_angle:
+        #             angle = new_b_angle - prev_b_angle
+        #         else:
+        #             angle = - (prev_b_angle - new_b_angle)
+        #         rad = math.radians(angle)
+
+        #     zb_offset = - (math.tan(rad) * width) / 2
+
+        #     # self._check_collision(zb_offset, length, width)
+
+        #     for s in z_steppers:
+        #         s.set_trapq(None)
+
+        #     z_steppers[1].set_trapq(toolhead.get_trapq())
+        #     z_steppers[1].set_dir_inverted(False)
+        #     z_steppers[2].set_trapq(toolhead.get_trapq())
+        #     curpos[2] += zb_offset
+        #     toolhead.move(curpos, speed)
+        #     toolhead.flush_step_generation()
+        #     stepper = self.steppers["stepper_z1"]
+        #     stepper.set_dir_inverted(True)
+
+        #     for s in z_steppers:
+        #         s.set_trapq(toolhead.get_trapq())
+
+        if change:
+            if relative:
+                self.a_angle = self.a_angle + new_a_angle
+                self.a_offset = self.a_offset + za_offset
+                # toolhead.set_b_angle(toolhead.get_b_angle() + new_b_angle)
+                # toolhead.set_b_offset(toolhead.get_b_offset() + zb_offset)
+            else:
+                self.a_angle = new_a_angle
+                self.a_offset = za_offset
+                # toolhead.set_a_angle(new_a_angle)
+                # toolhead.set_a_offset(za_offset)
+                # toolhead.set_b_angle(new_b_angle)
+                # toolhead.set_b_offset(zb_offset)
+        toolhead.set_position(prev_pos)
