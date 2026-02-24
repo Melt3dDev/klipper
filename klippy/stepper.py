@@ -274,7 +274,7 @@ def PrinterStepper(config, units_in_radians=False):
                               rotation_dist, steps_per_rotation,
                               step_pulse_duration, units_in_radians)
     # Register with helper modules
-    for mname in ['stepper_enable', 'force_move', 'motion_report']:
+    for mname in ['stepper_enable', 'force_move', 'motion_report', 'melt']:
         m = printer.load_object(config, mname)
         m.register_stepper(config, mcu_stepper)
     return mcu_stepper
@@ -369,9 +369,10 @@ class GenericPrinterRail:
             elif self.position_endstop >= self.position_max - axis_len / 4.:
                 self.homing_positive_dir = True
             else:
-                raise config.error(
-                    "Unable to infer homing_positive_dir in section '%s'"
-                    % (config.get_name(),))
+                self.homing_positive_dir = False
+                # raise config.error(
+                #     "Unable to infer homing_positive_dir in section '%s'"
+                #     % (config.get_name(),))
             config.getboolean('homing_positive_dir', self.homing_positive_dir)
         elif ((self.homing_positive_dir
                and self.position_endstop == self.position_min)

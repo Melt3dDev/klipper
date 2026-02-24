@@ -48,10 +48,6 @@ class ForceMove:
                                    desc=self.cmd_FORCE_MOVE_help)
             gcode.register_command('G13', self.cmd_G13,
                                    desc=self.cmd_G13_help)
-            gcode.register_command('G14', self.cmd_G14,
-                                   desc=self.cmd_G14_help)
-            gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE,
-                                   desc=self.cmd_GET_ANGLE_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
@@ -151,118 +147,6 @@ class ForceMove:
         stepper = self.steppers["stepper_z2"]
         self._force_enable(stepper)
         self.manual_move(stepper, dis_w, speed, accel)
-
-    def _check_collision(self, z_offset, length, width):
-        toolhead = self.printer.lookup_object('toolhead')
-        curpos = toolhead.get_position()
-        nozzle_percent = {"x": 1 - curpos[1] / length,
-                          "y": 1 - curpos[0] / width}
-        if curpos + z_offset * nozzle_percent["x"] <= 0:
-            raise self.printer.command_error("Prevented collision on A angle")
-        elif curpos + z_offset * nozzle_percent["x"] <= 0:
-            raise self.printer.command_error("Prevented collision on B angle")
-
-    cmd_G14_help = "Separate movement of the Z axis steppers with \
-                    angle as input"
-    def cmd_G14(self, gcmd):
-        toolhead = self.printer.lookup_object('toolhead')
-        curpos = toolhead.get_position()
-        prev_pos = toolhead.get_position()
-        kin = self.printer.lookup_object('toolhead').get_kinematics()
-        z_steppers = [s for s in kin.get_steppers() if
-                s.is_active_axis('z')]
-
-        speed = 20
-        relative = False
-        length = 250.95
-        width = 285.9
-
-        prev_a_angle = toolhead.get_a_angle()
-        new_a_angle = gcmd.get_float('A')
-        prev_b_angle = toolhead.get_b_angle()
-        new_b_angle = gcmd.get_float('B')
-
-        params = gcmd.get_command_parameters()
-        if 'F' in params:
-            gcode_speed = float(params['F'])
-            if gcode_speed <= 0.:
-                raise gcmd.error("Invalid speed in '%s'"
-                                    % (gcmd.get_commandline(),))
-            speed = gcode_speed * (1. / 60.)
-
-        if gcmd.get("R", None) is not None:
-            relative = True
-
-        if new_a_angle != prev_a_angle or relative:
-            if relative:
-                rad = math.radians(new_a_angle)
-            else:
-                if prev_a_angle < new_a_angle:
-                    angle = new_a_angle - prev_a_angle
-                else:
-                    angle = - (prev_a_angle - new_a_angle)
-                rad = math.radians(angle)
-
-            za_offset = - (math.tan(rad) * length) / 2
-
-            self._check_collision(za_offset, length, width)
-
-            z_steppers[1].set_dir_inverted(False)
-            z_steppers[2].set_dir_inverted(False)
-            curpos[2] += za_offset
-            toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
-            z_steppers[1].set_dir_inverted(True)
-            z_steppers[2].set_dir_inverted(True)
-
-        if new_b_angle != prev_b_angle or relative:
-            if relative:
-                rad = math.radians(new_b_angle)
-            else:
-                if prev_b_angle < new_b_angle:
-                    angle = new_b_angle - prev_b_angle
-                else:
-                    angle = - (prev_b_angle - new_b_angle)
-                rad = math.radians(angle)
-
-            zb_offset = - (math.tan(rad) * width) / 2
-
-            self._check_collision(zb_offset, length, width)
-
-            for s in z_steppers:
-                s.set_trapq(None)
-
-            z_steppers[1].set_trapq(toolhead.get_trapq())
-            z_steppers[1].set_dir_inverted(False)
-            z_steppers[2].set_trapq(toolhead.get_trapq())
-            curpos[2] += zb_offset
-            toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
-            stepper = self.steppers["stepper_z1"]
-            stepper.set_dir_inverted(True)
-
-            for s in z_steppers:
-                s.set_trapq(toolhead.get_trapq())
-
-        if relative:
-            toolhead.set_a_angle(toolhead.get_a_angle() + new_a_angle)
-            toolhead.set_a_offset(toolhead.get_a_offset() + za_offset)
-            toolhead.set_b_angle(toolhead.get_b_angle() + new_b_angle)
-            toolhead.set_b_offset(toolhead.get_b_offset() + zb_offset)
-        else:
-            toolhead.set_a_angle(new_a_angle)
-            toolhead.set_a_offset(za_offset)
-            toolhead.set_b_angle(new_b_angle)
-            toolhead.set_b_offset(zb_offset)
-        toolhead.set_position(prev_pos)
-
-    cmd_GET_ANGLE_help = "Get current angle"
-    def cmd_GET_ANGLE(self, gcmd):
-        toolhead = self.printer.lookup_object('toolhead')
-        gcode = self.printer.lookup_object('gcode')
-        msg = f"A: {str(toolhead.get_a_angle())}, B: {
-            str(toolhead.get_b_angle())}"
-        gcode.respond_info(str(msg))
 
     cmd_SET_KINEMATIC_POSITION_help = "Force a low-level kinematic position"
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
