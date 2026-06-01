@@ -61,11 +61,12 @@ class Melt:
         kin = self.printer.lookup_object('toolhead').get_kinematics()
         z_steppers = [s for s in kin.get_steppers() if
                 s.is_active_axis('z')]
-        change = False
+        change_a = False
+        change_b = False
 
         toolhead.flush_step_generation()
         if new_a_angle != self.a_angle or relative:
-            change = True
+            change_a = True
             rad = math.radians(new_a_angle)
             za_offset = (math.tan(rad) * self.length) / 2
 
@@ -77,13 +78,34 @@ class Melt:
             z_steppers[1].set_dir_inverted(False)
             z_steppers[2].set_dir_inverted(False)
 
-        if change:
+        if new_b_angle != self.b_angle or relative:
+            change_b = True
+            rad = math.radians(new_b_angle)
+            zb_offset = (math.tan(rad) * self.width) / 2
+
+            z_steppers[0].set_trapq(None)
+            z_steppers[2].set_dir_inverted(True)
+            curpos[2] -= zb_offset - self.b_offset
+            toolhead.move(curpos, speed)
+            toolhead.flush_step_generation()
+            z_steppers[2].set_dir_inverted(False)
+            z_steppers[0].set_trapq(toolhead.get_trapq())
+
+        if change_a:
             if relative:
                 self.a_angle = self.a_angle + new_a_angle
                 self.a_offset = self.a_offset + za_offset
             else:
                 self.a_angle = new_a_angle
                 self.a_offset = za_offset
+        if change_b:
+            if relative:
+                self.b_angle = self.b_angle + new_b_angle
+                self.b_offset = self.b_offset + zb_offset
+            else:
+                self.b_angle = new_b_angle
+                self.b_offset = zb_offset
+
         toolhead.set_position(prev_pos)
 
     cmd_G14_help = "Separate movement of the Z axis steppers with \
