@@ -20,6 +20,9 @@ class Melt:
         self.width = 285.9
         self.eject_coords = {"X": 0.0, "Y": 200.0, "Z": 10.0}
 
+        self.z_offset = 0.0
+        self.v_offset = 0.0
+
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
         self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
@@ -30,18 +33,68 @@ class Melt:
         # Register commands
         gcode = self.printer.lookup_object('gcode')
 
-        gcode.register_command('G14', self.cmd_G14,
-                                desc=self.cmd_G14_help)
-        gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE,
-                                desc=self.cmd_GET_ANGLE_help)
-        gcode.register_command('G15', self.cmd_G15,
-                                desc=self.cmd_G15_help)
+        gcode.register_command('G13', self.cmd_G13, desc=self.cmd_G13_help)
+        gcode.register_command('GET_OFFSET', self.cmd_GET_OFFSET, desc=self.cmd_GET_OFFSET_help)
+        gcode.register_command('G14', self.cmd_G14, desc=self.cmd_G14_help)
+        gcode.register_command('GET_ANGLE', self.cmd_GET_ANGLE, desc=self.cmd_GET_ANGLE_help)
+        gcode.register_command('G15', self.cmd_G15, desc=self.cmd_G15_help)
     def register_stepper(self, config, mcu_stepper):
         self.steppers[mcu_stepper.get_name()] = mcu_stepper
     def lookup_stepper(self, name):
         if name not in self.steppers:
             raise self.printer.config_error("Unknown stepper %s" % (name,))
         return self.steppers[name]
+
+    # self.manual_move cant take numbers as input, it needs to be a variable
+    cmd_G13_help = "(Relative) Separate movement of the Z axis steppers"
+    def cmd_G13(self, gcmd):
+        dis_z = gcmd.get_float('Z')
+        dis_v = gcmd.get_float('V')
+
+        speed = 40
+
+        toolhead = self.printer.lookup_object('toolhead')
+        curpos = toolhead.get_position()
+        prevpos = toolhead.get_position()
+        kin = self.printer.lookup_object('toolhead').get_kinematics()
+        z_steppers = [s for s in kin.get_steppers() if
+                        s.is_active_axis('z')]
+
+        if dis_v > dis_z or self.v_offset < self.z_offset:
+            curpos[2] += dis_v - self.v_offset
+        else:
+            curpos[2] += dis_z - self.z_offset
+        toolhead.move(curpos, speed)
+        toolhead.flush_step_generation()
+
+        if dis_v > dis_z or self.v_offset < self.z_offset:
+            z_steppers[1].set_trapq(None)
+            z_steppers[2].set_trapq(None)
+            curpos[2] -= (dis_v - self.v_offset) - (dis_z - self.z_offset)
+            toolhead.move(curpos, speed)
+            toolhead.flush_step_generation()
+            z_steppers[1].set_trapq(toolhead.get_trapq())
+            toolhead.flush_step_generation()
+            z_steppers[2].set_trapq(toolhead.get_trapq())
+            toolhead.flush_step_generation()
+        else:
+            z_steppers[0].set_trapq(None)
+            curpos[2] -= (dis_z - self.z_offset) - (dis_v - self.v_offset)
+            toolhead.move(curpos, speed)
+            toolhead.flush_step_generation()
+            z_steppers[0].set_trapq(toolhead.get_trapq())
+            toolhead.flush_step_generation()
+
+        curpos[2] = dis_z - self.z_offset + prevpos[2]
+        self.v_offset = dis_v
+        self.z_offset = dis_z
+        toolhead.set_position(curpos)
+
+    cmd_GET_OFFSET_help = "Get current offset"
+    def cmd_GET_OFFSET(self, gcmd):
+        gcode = self.printer.lookup_object('gcode')
+        msg = f"Z offset: {str(self.z_offset)}, V offset: {str(self.v_offset)}"
+        gcode.respond_info(str(msg))
 
     def _check_collision(self, angle, length, width):
         toolhead = self.printer.lookup_object('toolhead')
@@ -138,7 +191,6 @@ class Melt:
 
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
-        toolhead = self.printer.lookup_object('toolhead')
         gcode = self.printer.lookup_object('gcode')
         msg = f"A angle: {str(self.a_angle)}, B angle: {str(self.b_angle)}"
         gcode.respond_info(str(msg))

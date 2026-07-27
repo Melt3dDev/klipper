@@ -46,8 +46,6 @@ class ForceMove:
         if config.getboolean("enable_force_move", False):
             gcode.register_command('FORCE_MOVE', self.cmd_FORCE_MOVE,
                                    desc=self.cmd_FORCE_MOVE_help)
-            gcode.register_command('G13', self.cmd_G13,
-                                   desc=self.cmd_G13_help)
             gcode.register_command('SET_KINEMATIC_POSITION',
                                    self.cmd_SET_KINEMATIC_POSITION,
                                    desc=self.cmd_SET_KINEMATIC_POSITION_help)
@@ -125,28 +123,6 @@ class ForceMove:
                      stepper.get_name(), distance, speed, accel)
         self._force_enable(stepper)
         self.manual_move(stepper, distance, speed, accel)
-
-    # self.manual_move cant take numbers as input, it needs to be a variable
-    cmd_G13_help = "(Relative) Separate movement of the Z axis steppers"
-    def cmd_G13(self, gcmd):
-        dis_z = gcmd.get_float('Z')
-        dis_v = gcmd.get_float('V')
-        dis_w = gcmd.get_float('W')
-
-        speed = 20
-        accel = 0
-
-        stepper = self.steppers["stepper_z"]
-        self._force_enable(stepper)
-        self.manual_move(stepper, dis_z, speed, accel)
-
-        stepper = self.steppers["stepper_z1"]
-        self._force_enable(stepper)
-        self.manual_move(stepper, dis_v, speed, accel)
-
-        stepper = self.steppers["stepper_z2"]
-        self._force_enable(stepper)
-        self.manual_move(stepper, dis_w, speed, accel)
 
     cmd_SET_KINEMATIC_POSITION_help = "Force a low-level kinematic position"
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
