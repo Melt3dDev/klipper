@@ -59,35 +59,13 @@ class Melt:
         z_steppers = [s for s in kin.get_steppers() if
                         s.is_active_axis('z')]
 
-
-        if dis_v - self.v_offset > dis_z - self.z_offset:
-            curpos[2] += dis_v - self.v_offset
-            toolhead.move(curpos, speed)
-            toolhead.wait_moves()
-            z_steppers[1].set_trapq(None)
-            z_steppers[2].set_trapq(None)
-            curpos[2] -= (dis_v - self.v_offset) - (dis_z - self.z_offset)
-            toolhead.flush_step_generation()
-            toolhead.move(curpos, speed)
-            toolhead.wait_moves()
-            z_steppers[1].set_trapq(toolhead.get_trapq())
-            z_steppers[2].set_trapq(toolhead.get_trapq())
-            toolhead.flush_step_generation()
-        elif dis_v - self.v_offset < dis_z - self.z_offset:
-            curpos[2] += dis_z - self.z_offset
-            toolhead.move(curpos, speed)
-            toolhead.wait_moves()
-            z_steppers[0].set_trapq(None)
-            toolhead.flush_step_generation()
-            curpos[2] -= (dis_z - self.z_offset) - (dis_v - self.v_offset)
-            toolhead.move(curpos, speed)
-            toolhead.wait_moves()
-            z_steppers[0].set_trapq(toolhead.get_trapq())
-            toolhead.flush_step_generation()
-        else:
-            curpos[2] += dis_z - self.z_offset
-            toolhead.move(curpos, speed)
-            toolhead.wait_moves()
+        z_steppers[1].set_dir_inverted(True)
+        z_steppers[2].set_dir_inverted(True)
+        curpos[2] += dis_z - self.z_offset
+        toolhead.move(curpos, speed)
+        toolhead.flush_step_generation()
+        z_steppers[1].set_dir_inverted(False)
+        z_steppers[2].set_dir_inverted(False)
 
         curpos[2] = dis_z - self.z_offset + prevpos[2]
         self.v_offset = dis_v
