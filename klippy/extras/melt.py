@@ -45,7 +45,6 @@ class Melt:
             raise self.printer.config_error("Unknown stepper %s" % (name,))
         return self.steppers[name]
 
-    # self.manual_move cant take numbers as input, it needs to be a variable
     cmd_G13_help = "(Relative) Separate movement of the Z axis steppers"
     def cmd_G13(self, gcmd):
         dis_z = gcmd.get_float('Z')
@@ -60,30 +59,35 @@ class Melt:
         z_steppers = [s for s in kin.get_steppers() if
                         s.is_active_axis('z')]
 
-        if dis_v > dis_z or self.v_offset < self.z_offset:
-            curpos[2] += dis_v - self.v_offset
-        else:
-            curpos[2] += dis_z - self.z_offset
-        toolhead.move(curpos, speed)
-        toolhead.flush_step_generation()
 
-        if dis_v > dis_z or self.v_offset < self.z_offset:
+        if dis_v - self.v_offset > dis_z - self.z_offset:
+            curpos[2] += dis_v - self.v_offset
+            toolhead.move(curpos, speed)
+            toolhead.wait_moves()
             z_steppers[1].set_trapq(None)
             z_steppers[2].set_trapq(None)
             curpos[2] -= (dis_v - self.v_offset) - (dis_z - self.z_offset)
+            toolhead.flush_step_generation()
             toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
+            toolhead.wait_moves()
             z_steppers[1].set_trapq(toolhead.get_trapq())
-            toolhead.flush_step_generation()
             z_steppers[2].set_trapq(toolhead.get_trapq())
             toolhead.flush_step_generation()
-        else:
+        elif dis_v - self.v_offset < dis_z - self.z_offset:
+            curpos[2] += dis_z - self.z_offset
+            toolhead.move(curpos, speed)
+            toolhead.wait_moves()
             z_steppers[0].set_trapq(None)
+            toolhead.flush_step_generation()
             curpos[2] -= (dis_z - self.z_offset) - (dis_v - self.v_offset)
             toolhead.move(curpos, speed)
-            toolhead.flush_step_generation()
+            toolhead.wait_moves()
             z_steppers[0].set_trapq(toolhead.get_trapq())
             toolhead.flush_step_generation()
+        else:
+            curpos[2] += dis_z - self.z_offset
+            toolhead.move(curpos, speed)
+            toolhead.wait_moves()
 
         curpos[2] = dis_z - self.z_offset + prevpos[2]
         self.v_offset = dis_v
