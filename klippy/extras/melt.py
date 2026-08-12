@@ -59,13 +59,11 @@ class Melt:
         z_steppers = [s for s in kin.get_steppers() if
                         s.is_active_axis('z')]
 
-        z_steppers[1].set_dir_inverted(True)
-        z_steppers[2].set_dir_inverted(True)
-        curpos[2] -= dis_z - self.z_offset
+        z_steppers[0].set_dir_inverted(True)
+        curpos[2] += dis_v - self.v_offset
         toolhead.move(curpos, speed)
-        toolhead.flush_step_generation()
-        z_steppers[1].set_dir_inverted(False)
-        z_steppers[2].set_dir_inverted(False)
+        toolhead.wait_moves()
+        z_steppers[0].set_dir_inverted(False)
 
         self.v_offset = dis_v
         self.z_offset = dis_z
