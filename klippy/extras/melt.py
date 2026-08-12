@@ -61,7 +61,7 @@ class Melt:
 
         z_steppers[1].set_dir_inverted(True)
         z_steppers[2].set_dir_inverted(True)
-        curpos[2] = dis_z
+        curpos[2] -= dis_z - self.z_offset
         toolhead.move(curpos, speed)
         toolhead.flush_step_generation()
         z_steppers[1].set_dir_inverted(False)
