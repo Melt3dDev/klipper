@@ -54,7 +54,7 @@ class Melt:
 
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
-        prevpos = toolhead.get_position()
+        prev_z = curpos[2]
         kin = self.printer.lookup_object('toolhead').get_kinematics()
         z_steppers = [s for s in kin.get_steppers() if
                         s.is_active_axis('z')]
@@ -65,6 +65,7 @@ class Melt:
         toolhead.wait_moves()
         z_steppers[0].set_dir_inverted(False)
 
+        curpos[2] = prev_z + dis_z - self.z_offset
         self.v_offset = dis_v
         self.z_offset = dis_z
         toolhead.set_position(curpos)
