@@ -90,7 +90,7 @@ class Melt:
             raise self.printer.command_error("Prevented collision on A angle")
 
     # Tu nastane podla mna nejaka sracka ked sa pocita offset zase ked nie je angle 0
-    def angle_move(self, new_a_angle, new_b_angle, speed, relative):
+    def angle_move(self, new_a_angle, new_b_angle, speed):
         toolhead = self.printer.lookup_object('toolhead')
         curpos = toolhead.get_position()
         prev_pos = toolhead.get_position()
@@ -101,7 +101,7 @@ class Melt:
         change_b = False
 
         toolhead.flush_step_generation()
-        if new_a_angle != self.a_angle or relative:
+        if new_a_angle != self.a_angle:
             change_a = True
             rad = math.radians(new_a_angle)
             za_offset = (math.tan(rad) * self.length) / 2
@@ -114,7 +114,7 @@ class Melt:
             z_steppers[1].set_dir_inverted(False)
             z_steppers[2].set_dir_inverted(False)
 
-        if new_b_angle != self.b_angle or relative:
+        if new_b_angle != self.b_angle:
             change_b = True
             rad = math.radians(new_b_angle)
             zb_offset = (math.tan(rad) * self.width) / 2
@@ -128,19 +128,11 @@ class Melt:
             z_steppers[0].set_trapq(toolhead.get_trapq())
 
         if change_a:
-            if relative:
-                self.a_angle = self.a_angle + new_a_angle
-                self.a_offset = self.a_offset + za_offset
-            else:
-                self.a_angle = new_a_angle
-                self.a_offset = za_offset
+            self.a_angle = new_a_angle
+            self.a_offset = za_offset
         if change_b:
-            if relative:
-                self.b_angle = self.b_angle + new_b_angle
-                self.b_offset = self.b_offset + zb_offset
-            else:
-                self.b_angle = new_b_angle
-                self.b_offset = zb_offset
+            self.b_angle = new_b_angle
+            self.b_offset = zb_offset
 
         toolhead.set_position(prev_pos)
 
@@ -148,20 +140,22 @@ class Melt:
                     angle as input"
     def cmd_G14(self, gcmd):
         speed = 20.0
-        relative = False
         new_a_angle = 0.0
         new_b_angle = 0.0
 
         params = gcmd.get_command_parameters()
 
         if "A" in params:
-            new_a_angle = float(params["A"])
+            if "R" in params:
+                new_a_angle = self.a_angle + float(params["A"])
+            else:
+                new_a_angle = float(params["A"])
 
         if "B" in params:
-            new_b_angle = float(params["B"])
-
-        if "R" in params:
-            relative = True
+            if "R" in params:
+                new_b_angle = self.b_angle + float(params["B"])
+            else:
+                new_b_angle = float(params["B"])
 
         if "F" in params:
             gcode_speed = float(params["F"])
@@ -170,7 +164,7 @@ class Melt:
                                     % (gcmd.get_commandline(),))
             speed = gcode_speed * (1. / 60.)
 
-        self.angle_move(new_a_angle, new_b_angle, speed, relative)
+        self.angle_move(new_a_angle, new_b_angle, speed)
 
     cmd_GET_ANGLE_help = "Get current angle"
     def cmd_GET_ANGLE(self, gcmd):
