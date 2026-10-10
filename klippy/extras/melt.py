@@ -45,6 +45,9 @@ class Melt:
             raise self.printer.config_error("Unknown stepper %s" % (name,))
         return self.steppers[name]
 
+    def invert_dir(self, s):
+        s.set_dir_inverted(not bool(s.get_dir_inverted()[0]))
+
     cmd_G13_help = "(Relative) Separate movement of the Z axis steppers"
     def cmd_G13(self, gcmd):
         dis_z = gcmd.get_float('Z')
@@ -60,11 +63,11 @@ class Melt:
                         s.is_active_axis('z')]
 
         toolhead.wait_moves()
-        z_steppers[0].set_dir_inverted(True)
+        self.invert_dir(z_steppers[0])
         curpos[2] += dis_v - self.v_offset
         toolhead.move(curpos, speed)
         toolhead.wait_moves()
-        z_steppers[0].set_dir_inverted(False)
+        self.invert_dir(z_steppers[0])
         toolhead.wait_moves()
 
         curpos[2] = prev_z + dis_z - self.z_offset
@@ -106,13 +109,13 @@ class Melt:
             rad = math.radians(new_a_angle)
             za_offset = (math.tan(rad) * self.length) / 2
 
-            z_steppers[1].set_dir_inverted(True)
-            z_steppers[2].set_dir_inverted(True)
+            self.invert_dir(z_steppers[1])
+            self.invert_dir(z_steppers[2])
             curpos[2] -= za_offset - self.a_offset
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
-            z_steppers[1].set_dir_inverted(False)
-            z_steppers[2].set_dir_inverted(False)
+            self.invert_dir(z_steppers[1])
+            self.invert_dir(z_steppers[2])
 
         if new_b_angle != self.b_angle:
             change_b = True
@@ -120,11 +123,11 @@ class Melt:
             zb_offset = (math.tan(rad) * self.width) / 2
 
             z_steppers[0].set_trapq(None)
-            z_steppers[2].set_dir_inverted(True)
+            self.invert_dir(z_steppers[2])
             curpos[2] -= zb_offset - self.b_offset
             toolhead.move(curpos, speed)
             toolhead.flush_step_generation()
-            z_steppers[2].set_dir_inverted(False)
+            self.invert_dir(z_steppers[2])
             z_steppers[0].set_trapq(toolhead.get_trapq())
 
         if change_a:
