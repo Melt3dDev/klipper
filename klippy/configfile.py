@@ -251,53 +251,6 @@ class ConfigAutoSave:
         gcode = self.printer.lookup_object('gcode')
         gcode.register_command("SAVE_CONFIG", self.cmd_SAVE_CONFIG,
                                desc=self.cmd_SAVE_CONFIG_help)
-    def _find_autosave_data(self, data):
-        regular_data = data
-        autosave_data = ""
-        pos = data.find(AUTOSAVE_HEADER)
-        if pos >= 0:
-            regular_data = data[:pos]
-            autosave_data = data[pos + len(AUTOSAVE_HEADER):].strip()
-        # Check for errors and strip line prefixes
-        if "\n#*# " in regular_data or autosave_data.find(AUTOSAVE_HEADER) >= 0:
-            logging.warning("Can't read autosave from config file"
-                            " - autosave state corrupted")
-            return data, ""
-        out = [""]
-        for line in autosave_data.split('\n'):
-            if ((not line.startswith("#*#")
-                 or (len(line) >= 4 and not line.startswith("#*# ")))
-                and autosave_data):
-                logging.warning("Can't read autosave from config file"
-                                " - modifications after header")
-                return data, ""
-            out.append(line[4:])
-        out.append("")
-        return regular_data, "\n".join(out)
-    comment_r = re.compile('[#;].*$')
-    value_r = re.compile('[^A-Za-z0-9_].*$')
-    def _strip_duplicates(self, data, fileconfig):
-        # Comment out fields in 'data' that are defined in 'config'
-        lines = data.split('\n')
-        section = None
-        is_dup_field = False
-        for lineno, line in enumerate(lines):
-            pruned_line = self.comment_r.sub('', line).rstrip()
-            if not pruned_line:
-                continue
-            if pruned_line[0].isspace():
-                if is_dup_field:
-                    lines[lineno] = '#' + lines[lineno]
-                continue
-            is_dup_field = False
-            if pruned_line[0] == '[':
-                section = pruned_line[1:-1].strip()
-                continue
-            field = self.value_r.sub('', pruned_line)
-            if fileconfig.has_option(section, field):
-                is_dup_field = True
-                lines[lineno] = '#' + lines[lineno]
-        return "\n".join(lines)
     def _save_filename(self):
         cfgname = self.printer.get_start_args()['config_file']
         return os.path.join(os.path.dirname(cfgname), 'save_config.cfg')
@@ -306,7 +259,6 @@ class ConfigAutoSave:
         cfgrdr = ConfigFileReader()
         data = cfgrdr.read_config_file(filename)
         regular_fileconfig = cfgrdr.build_fileconfig_with_includes(data, filename)
-        autosave_data = self._strip_duplicates(data, regular_fileconfig)
         savename = self._save_filename()
         save_data = ""
         if os.path.exists(savename):
@@ -343,31 +295,24 @@ class ConfigAutoSave:
             del pending[section]
             self.status_save_pending = pending
             self.save_config_pending = True
-    def _disallow_include_conflicts(self, regular_fileconfig):
-        for section in self.fileconfig.sections():
-            for option in self.fileconfig.options(section):
-                if regular_fileconfig.has_option(section, option):
-                    msg = ("SAVE_CONFIG section '%s' option '%s' conflicts "
-                           "with included value" % (section, option))
-                    raise self.printer.command_error(msg)
     cmd_SAVE_CONFIG_help = "Overwrite config file and restart"
     def cmd_SAVE_CONFIG(self, gcmd):
-      if not self.fileconfig.sections():
-          return
-      cfgrdr = ConfigFileReader()
-      data = cfgrdr.build_config_string(self.fileconfig)
-      savename = self._save_filename()
-      temp_name = savename + "_tmp"
-      try:
-          with open(temp_name, 'w') as f:
-              f.write(data)
-          os.rename(temp_name, savename)
-      except:
-          msg = "Unable to write config file during SAVE_CONFIG"
-          logging.exception(msg)
-          raise gcmd.error(msg)
-      gcode = self.printer.lookup_object('gcode')
-      gcode.request_restart('restart')
+        if not self.fileconfig.sections():
+            return
+        cfgrdr = ConfigFileReader()
+        data = cfgrdr.build_config_string(self.fileconfig)
+        savename = self._save_filename()
+        temp_name = savename + "_tmp"
+        try:
+            with open(temp_name, 'w') as f:
+                f.write(data)
+            os.rename(temp_name, savename)
+        except:
+            msg = "Unable to write config file during SAVE_CONFIG"
+            logging.exception(msg)
+            raise gcmd.error(msg)
+        gcode = self.printer.lookup_object('gcode')
+        gcode.request_restart('restart')
 
 
 
